@@ -1,0 +1,2 @@
+class SuggestException(Exception):
+    pass
