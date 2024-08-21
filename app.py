@@ -5,10 +5,10 @@ from dotenv import load_dotenv
 import os
 from dateutil import parser
 import validators
-from utils.suggest_utils import get_suggest_embed
+from utils.suggest_utils import BotUtils
 from utils.type_texts import type_dict
 from utils.exceptions import SuggestException
-
+from utils.suggest_dataclass import SuggestInfo
 
 load_dotenv()
 
@@ -21,6 +21,10 @@ handler.setFormatter(
     logging.Formatter("%(asctime)s:%(levelname)s:%(name)s: %(message)s")
 )
 logger.addHandler(handler)
+
+bot_utils = BotUtils()
+bot_utils.refresh_token_if_needed()
+
 bot = discord.Bot(debug_guilds=GUILDS)
 
 
@@ -76,27 +80,33 @@ async def suggest(
     pp: str,
 ):
     try:
+        await ctx.defer()
         if source_link and not validators.url(source_link):
             raise SuggestException("Provide valid source link!")
         if map_link and not validators.url(map_link):
             raise SuggestException("Provide valid map link!")
+        suggest_info = SuggestInfo(
+            suggest_type=type,
+            description=description,
+            date=parser.parse(date),
+            source_link=source_link,
+            map_link=map_link,
+            player=player,
+            pp=pp,
+        )
         await ctx.respond(
             f"🤙 New Suggestion made by: {ctx.author.name}",
-            embed=get_suggest_embed(
-                suggest_type=type,
-                description=description,
-                date=parser.parse(date),
-                source_link=source_link,
-                map_link=map_link,
-                player=player,
-                pp=pp,
+            embed=bot_utils.get_suggest_embed_and_upsert_coda(
+                info=suggest_info, author=ctx.author.name
             ),
         )
         logger.info(f"{ctx.author.name}(id: {ctx.author.id}) made his suggestion")
     except SuggestException as sex:
-        await ctx.respond(str(sex))
+        error = str(sex)
+        await ctx.respond(error, ephemeral=True)
+        logger.exception(sex)
     except Exception as ex:
-        await ctx.respond("Something else went wrong!")
+        await ctx.respond("Something else went wrong!", ephemeral=True)
         logger.exception(ex)
 
 
